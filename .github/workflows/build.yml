@@ -39,7 +39,7 @@ jobs:
       if: startsWith(matrix.os, 'macOS')
       run: |
           brew update
-          brew install zlib expat gawk gnu-sed gcc@8	
+          brew install zlib expat gawk gnu-sed gcc@8
           
     - name: Maximize build disk space
       if: startsWith(matrix.os, 'ubuntu')
@@ -150,7 +150,7 @@ jobs:
     - name: Install Dependencies on macOS
       if: startsWith(matrix.os, 'macOS')
       run: |
-          brew install zlib expat gawk gnu-sed
+          brew install zlib expat gawk gnu-sed gcc@8
 
     - name: Maximize build disk space
       if: startsWith(matrix.os, 'ubuntu')

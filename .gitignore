@@ -1,2 +1,7 @@
 autom4te.cache
 build
+config.log
+config.status
+build-*
+/src
+/Makefile

@@ -9,7 +9,7 @@ binutils_version := 2.24
 glibc_version := 2.20
 newlib_version := 1.18.0
 
-GNU_MIRROR := ftp://mirrors.kernel.org/gnu
+GNU_MIRROR := https://mirrors.kernel.org/gnu
 gcc_url := $(GNU_MIRROR)/gcc/gcc-$(gcc_version)/gcc-$(gcc_version).tar.gz
 binutils_url := $(GNU_MIRROR)/binutils/binutils-$(binutils_version).tar.gz
 glibc_url := $(GNU_MIRROR)/glibc/glibc-$(glibc_version).tar.gz
@@ -19,6 +19,7 @@ MAKE_JOBS := 16
 
 LINUX_DIR := $(srcdir)/linux-headers/
 
+CFLAGS += -Wno-error
 # Check that we have gawk installed.  Set awk=gawk if necessary.
 SHELL := /bin/sh
 ifeq ($(shell awk --version | grep GNU),)
@@ -42,7 +43,7 @@ $(addprefix src/original-,$(PACKAGES)):
 $(addprefix src/,$(PACKAGES)): src/%: src/original-%
 	rm -rf $@.tmp
 	cp -r $< $@.tmp
-	cp -rs $(srcdir)/$(shell basename $@)/* $@.tmp
+	cp -r $(srcdir)/$(shell basename $@)/* $@.tmp
 	cd $@.tmp && patch -p1 < $(srcdir)/patches/$(shell basename $@)
 	mv $@.tmp $@
 
@@ -50,24 +51,26 @@ $(addprefix src/,$(PACKAGES)): src/%: src/original-%
 $(addprefix $(srcdir)/patches/,$(PACKAGES)): $(srcdir)/patches/%: src/%
 	-cd src/$(shell basename $@) && rm `cd $(srcdir)/$(shell basename $@) && find . -type f`
 	-cd src && diff --exclude=manual --exclude=autom4te.cache -rupN original-$(shell basename $@) $(shell basename $@) | filterdiff --remove-timestamps > $@
-	cp -rs $(srcdir)/$(shell basename $@)/* src/$(shell basename $@)
+	cp -r $(srcdir)/$(shell basename $@)/* src/$(shell basename $@)
 
 patches: $(addprefix $(srcdir)/patches/,$(PACKAGES))
 
 build-binutils-linux: src/binutils
-	-cp -rs $(srcdir)/binutils src 2> /dev/null
+	-cp -r $(srcdir)/binutils src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && $(shell pwd)/$</configure \
 		--target=riscv-linux \
 		--prefix=$(INSTALL_DIR) \
 		--enable-tls \
-		--disable-multilib
+		--disable-multilib \
+        CFLAGS="-g -O2 -Wno-error"
+
 	$(MAKE) -C $@ -j $(MAKE_JOBS)
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
 build-glibc-linux: src/glibc build-gcc-linux-stage1
-	-cp -rs $(srcdir)/binutils src 2> /dev/null
+	-cp -r $(srcdir)/binutils src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && $(shell pwd)/$</configure \
@@ -83,7 +86,7 @@ build-glibc-linux: src/glibc build-gcc-linux-stage1
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
 build-gcc-linux-stage1: src/gcc build-binutils-linux
-	-cp -rs $(srcdir)/gcc src 2> /dev/null
+	-cp -r $(srcdir)/gcc src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && $(shell pwd)/$</configure \
@@ -105,7 +108,7 @@ build-gcc-linux-stage1: src/gcc build-binutils-linux
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
 build-gcc-linux-stage2: src/gcc build-glibc-linux
-	-cp -rs $(srcdir)/gcc src 2> /dev/null
+	-cp -r $(srcdir)/gcc src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && $(shell pwd)/$</configure \
@@ -125,26 +128,27 @@ build-gcc-linux-stage2: src/gcc build-glibc-linux
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
 build-binutils-newlib: src/binutils
-	-cp -rs $(srcdir)/binutils src 2> /dev/null
+	-cp -r $(srcdir)/binutils src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && \
-	CFLAGS+=-Wno-error=deprecated-declarations \
 	$(shell pwd)/$</configure \
 		--target=riscv-elf \
 		--prefix=$(INSTALL_DIR) \
-		--enable-tls
+		--enable-tls \
+        CFLAGS="-g -O2 -Wno-error"
+
 	$(MAKE) -C $@ -j $(MAKE_JOBS)
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
 src/newlib-gcc: src/gcc src/newlib
 	rm -rf $@
-	cp -rs $(shell pwd)/src/gcc $@
-	cp -rs $(shell pwd)/src/newlib/newlib $@
-	cp -rs $(shell pwd)/src/newlib/libgloss $@
+	cp -r $(shell pwd)/src/gcc $@
+	cp -r $(shell pwd)/src/newlib/newlib $@
+	cp -r $(shell pwd)/src/newlib/libgloss $@
 
 build-gcc-newlib: src/newlib-gcc build-binutils-newlib
-	-cp -rs $(srcdir)/binutils src 2> /dev/null
+	-cp -r $(srcdir)/binutils src 2> /dev/null
 	rm -rf $@
 	mkdir $@
 	cd $@ && $(shell pwd)/$</configure \

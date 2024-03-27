@@ -1,0 +1,9 @@
+[submodule "gcc"]
+	path = gcc
+	url = https://github.com/bigmagic123/gcc
+[submodule "newlib"]
+	path = newlib
+	url = https://github.com/bigmagic123/newlib
+[submodule "binutils"]
+	path = binutils
+	url = https://github.com/bigmagic123/binutils-gdb

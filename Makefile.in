@@ -3,18 +3,6 @@
 INSTALL_DIR := @prefix@
 srcdir := $(shell cd @top_srcdir@ && pwd)
 
-PACKAGES := binutils gcc glibc newlib
-gcc_version := 4.9.1
-binutils_version := 2.24
-glibc_version := 2.20
-newlib_version := 1.18.0
-
-GNU_MIRROR := https://mirrors.kernel.org/gnu
-gcc_url := $(GNU_MIRROR)/gcc/gcc-$(gcc_version)/gcc-$(gcc_version).tar.gz
-binutils_url := $(GNU_MIRROR)/binutils/binutils-$(binutils_version).tar.gz
-glibc_url := $(GNU_MIRROR)/glibc/glibc-$(glibc_version).tar.gz
-newlib_url := ftp://sourceware.org/pub/newlib/newlib-$(newlib_version).tar.gz
-
 MAKE_JOBS := 16
 
 LINUX_DIR := $(srcdir)/linux-headers/
@@ -32,105 +20,9 @@ endif
 
 newlib: build-gcc-newlib
 
-linux: build-gcc-linux-stage2
-
-$(addprefix src/original-,$(PACKAGES)):
-	mkdir -p src
-	rm -rf $@ $(subst original-,,$@)-*
-	cd src && curl $($(subst src/original-,,$@)_url) | tar zx
-	mv $(subst original-,,$@)-$($(subst src/original-,,$@)_version) $@
-
-$(addprefix src/,$(PACKAGES)): src/%: src/original-%
-	rm -rf $@.tmp
-	cp -r $< $@.tmp
-	cp -r $(srcdir)/$(shell basename $@)/* $@.tmp
-	cd $@.tmp && patch -p1 < $(srcdir)/patches/$(shell basename $@)
-	mv $@.tmp $@
-
-.PHONY: patches $(addprefix $(srcdir)/patches/,$(PACKAGES))
-$(addprefix $(srcdir)/patches/,$(PACKAGES)): $(srcdir)/patches/%: src/%
-	-cd src/$(shell basename $@) && rm `cd $(srcdir)/$(shell basename $@) && find . -type f`
-	-cd src && diff --exclude=manual --exclude=autom4te.cache -rupN original-$(shell basename $@) $(shell basename $@) | filterdiff --remove-timestamps > $@
-	cp -r $(srcdir)/$(shell basename $@)/* src/$(shell basename $@)
-
-patches: $(addprefix $(srcdir)/patches/,$(PACKAGES))
-
-build-binutils-linux: src/binutils
-	-cp -r $(srcdir)/binutils src 2> /dev/null
-	rm -rf $@
-	mkdir $@
-	cd $@ && $(shell pwd)/$</configure \
-		--target=riscv-linux \
-		--prefix=$(INSTALL_DIR) \
-		--enable-tls \
-		--disable-multilib \
-        CFLAGS="-g -O2 -Wno-error"
-
-	$(MAKE) -C $@ -j $(MAKE_JOBS)
-	$(MAKE) -C $@ -j $(MAKE_JOBS) install
-
-build-glibc-linux: src/glibc build-gcc-linux-stage1
-	-cp -r $(srcdir)/binutils src 2> /dev/null
-	rm -rf $@
-	mkdir $@
-	cd $@ && $(shell pwd)/$</configure \
-		--host=riscv-linux \
-		--prefix=$(INSTALL_DIR)/riscv-linux \
-		libc_cv_forced_unwind=yes \
-		libc_cv_c_cleanup=yes \
-		--enable-shared \
-		--enable-__thread \
-		--disable-multilib \
-		--with-headers=$(LINUX_DIR)/include
-	$(MAKE) -C $@ -j $(MAKE_JOBS)
-	$(MAKE) -C $@ -j $(MAKE_JOBS) install
-
-build-gcc-linux-stage1: src/gcc build-binutils-linux
-	-cp -r $(srcdir)/gcc src 2> /dev/null
-	rm -rf $@
-	mkdir $@
-	cd $@ && $(shell pwd)/$</configure \
-		--target=riscv-linux \
-		--prefix=$(INSTALL_DIR) \
-		--enable-shared \
-		--disable-threads \
-		--enable-tls \
-		--enable-languages=c \
-		--disable-libatomic \
-		--disable-libmudflap \
-		--disable-libssp \
-		--disable-libquadmath \
-		--disable-libgomp \
-		--disable-nls \
-		--disable-multilib \
-		--disable-bootstrap
-	-$(MAKE) -C $@ -j $(MAKE_JOBS) inhibit-libc=true
-	$(MAKE) -C $@ -j $(MAKE_JOBS) install
-
-build-gcc-linux-stage2: src/gcc build-glibc-linux
-	-cp -r $(srcdir)/gcc src 2> /dev/null
-	rm -rf $@
-	mkdir $@
-	cd $@ && $(shell pwd)/$</configure \
-		--target=riscv-linux \
-		--prefix=$(INSTALL_DIR) \
-		--enable-shared \
-		--enable-tls \
-		--enable-languages=c,c++ \
-		--disable-libmudflap \
-		--disable-libssp \
-		--disable-libquadmath \
-		--disable-nls \
-		--disable-multilib \
-		--disable-bootstrap \
-		--with-headers=$(LINUX_DIR)/include
-	$(MAKE) -C $@ -j $(MAKE_JOBS)
-	$(MAKE) -C $@ -j $(MAKE_JOBS) install
-
-build-binutils-newlib: src/binutils
-	-cp -r $(srcdir)/binutils src 2> /dev/null
-	rm -rf $@
-	mkdir $@
+build-binutils-newlib: binutils
+	rm -rf $@ $(notdir $@)
+	mkdir $(notdir $@)
 	cd $@ && \
 	$(shell pwd)/$</configure \
 		--target=riscv-elf \
@@ -141,16 +33,15 @@ build-binutils-newlib: src/binutils
 	$(MAKE) -C $@ -j $(MAKE_JOBS)
 	$(MAKE) -C $@ -j $(MAKE_JOBS) install
 
-src/newlib-gcc: src/gcc src/newlib
+newlib-gcc: gcc newlib
 	rm -rf $@
-	cp -r $(shell pwd)/src/gcc $@
-	cp -r $(shell pwd)/src/newlib/newlib $@
-	cp -r $(shell pwd)/src/newlib/libgloss $@
+	cp -r $(shell pwd)/gcc $@
+	cp -r $(shell pwd)/newlib/newlib $@
+	cp -r $(shell pwd)/newlib/libgloss $@
 
-build-gcc-newlib: src/newlib-gcc build-binutils-newlib
-	-cp -r $(srcdir)/binutils src 2> /dev/null
-	rm -rf $@
-	mkdir $@
+build-gcc-newlib: newlib-gcc build-binutils-newlib
+	rm -rf $@ $(notdir $@)
+	mkdir $(notdir $@)
 	cd $@ && $(shell pwd)/$</configure \
 		--target=riscv-elf \
 		--prefix=$(INSTALL_DIR) \
@@ -169,10 +60,10 @@ build-gcc-newlib: src/newlib-gcc build-binutils-newlib
 	for i in $(INSTALL_DIR)/bin/riscv-elf-*; do j=`echo $$i | sed 's/riscv-elf-/riscv-/'`; if [ ! -f $$j ]; then ln -s `basename $$i` $$j; fi; done
 
 clean:
-	rm -rf build-* $(addprefix src/,$(PACKAGES))
+	rm -rf build-* newlib-gcc
 
 distclean:
-	rm -rf build-* src
+	rm -rf build-* newlib-gcc
 
 # All of the packages install themselves, so our install target does nothing.
 install:
